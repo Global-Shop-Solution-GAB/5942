@@ -1,0 +1,771 @@
+Program.Sub.ScreenSU.Start
+Gui.F_Rpt..Create
+Gui.F_Rpt..Caption("Generate Cash Flow Statement")
+Gui.F_Rpt..Size(16275,7425)
+Gui.F_Rpt..MinX(0)
+Gui.F_Rpt..MinY(0)
+Gui.F_Rpt..Position(0,0)
+Gui.F_Rpt..FontSize(9)
+Gui.F_Rpt..BackColor(-2147483633)
+Gui.F_Rpt..MousePointer(0)
+Gui.F_Rpt..Event(UnLoad,Unload)
+Gui.F_Rpt.lbl1.Create(Label,"Period",True,1125,255,0,90,150,True,0,"Arial",9,-2147483633,0)
+Gui.F_Rpt.lbl2.Create(Label,"Year",True,1935,255,0,2235,150,True,0,"Arial",9,-2147483633,0)
+Gui.F_Rpt.lbl2.Event(Click,cmdPrint_Click)
+Gui.F_Rpt.cmdPrint.Create(Button)
+Gui.F_Rpt.cmdPrint.Size(1935,555)
+Gui.F_Rpt.cmdPrint.Position(4395,165)
+Gui.F_Rpt.cmdPrint.Caption("Generate")
+Gui.F_Rpt.cmdPrint.FontSize(9)
+Gui.F_Rpt.cmdPrint.Event(Click,cmdPrint_Click)
+Gui.F_Rpt.ddlPeriod.Create(DropDownList)
+Gui.F_Rpt.ddlPeriod.Size(1095,345)
+Gui.F_Rpt.ddlPeriod.Position(105,375)
+Gui.F_Rpt.ddlPeriod.FontSize(9)
+Gui.F_Rpt.ddlYear.Create(DropDownList)
+Gui.F_Rpt.ddlYear.Size(1260,345)
+Gui.F_Rpt.ddlYear.Position(2265,375)
+Gui.F_Rpt.ddlYear.FontSize(9)
+Gui.F_Rpt.GsGCIn.Create(GsGridControl)
+Gui.F_Rpt.GsGCIn.Size(7890,5880)
+Gui.F_Rpt.GsGCIn.Position(135,855)
+Gui.F_Rpt.GsGCOut.Create(GsGridControl)
+Gui.F_Rpt.GsGCOut.Size(7890,5880)
+Gui.F_Rpt.GsGCOut.Position(8100,855)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+V.Global.sPeriod.Declare
+V.Global.sYear.Declare
+V.Global.sBaseCurr.Declare
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+V.Local.dateMonth.Declare
+V.Local.i1.Declare
+V.Local.sIcon.Declare
+V.Local.sRet.Declare
+
+F.Intrinsic.String.Build("{0}\ART\gss2.ico",V.Caller.GlobalDir,V.Local.sIcon)
+Gui.F_Rpt..Icon(V.Local.sIcon)
+
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+'Set the month in dropdownlist
+F.Intrinsic.Control.For(V.Local.i1,1,12,1)
+	Gui.F_Rpt.ddlPeriod.AddItem(V.Local.i1)
+F.Intrinsic.Control.Next(V.Local.i1)
+
+F.Data.Dictionary.CreateFromSQL("dicYear","conx","select distinct(start_year), start_year from gl_calendar order by start_year",4)
+Gui.F_Rpt.ddlYear.AddItems("Dictionary","dicYear")
+F.Data.Dictionary.Close("dicYear")
+
+F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst","select Currency from v_company_opt")
+V.Global.sBaseCurr.Set(V.ODBC.conx!rst.FieldValTrim!Currency)
+F.ODBC.conx!rst.Close
+
+
+F.Intrinsic.Date.GLPeriodFromDate(V.Ambient.Date,V.Local.sRet)
+F.Intrinsic.Control.If(V.Local.sRet,<>,"***NONE***")
+	F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+	Gui.F_Rpt.ddlYear.Text(V.Local.sRet(1))
+	F.Intrinsic.Math.ConvertToLong(V.Local.sRet(0),V.Local.i1)
+	Gui.F_Rpt.ddlPeriod.Text(V.Local.i1)
+	V.Global.sPeriod.Set(V.Local.sRet(0))
+	V.Global.sYear.Set(V.Local.sRet(1))
+F.Intrinsic.Control.EndIf
+
+'Get all cash accounts
+F.Data.DataTable.CreateFromSQL("dtAcct","conx","select gl_number as GLAccount, currency as Currency, B.Default_Acct from gab_5942_cash_acct A left join v_cash_account B On A.gl_number = B.GL_Cash_Acct order by gl_number",True)
+
+F.Intrinsic.Control.CallSub(ddl_Process)
+
+Gui.F_Rpt..Show
+Program.Sub.Main.End
+
+Program.Sub.Unload.Start
+F.Data.DataTable.Close("dtAcct")
+
+F.Intrinsic.Control.If(V.DataTable.dtIn.Exists)
+	F.Data.DataTable.Close("dtIn")
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.If(V.DataTable.dtOut.Exists)
+	F.Data.DataTable.Close("dtOut")
+F.Intrinsic.Control.EndIf
+
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+
+Program.Sub.Unload.End
+
+Program.Sub.cmdPrint_Click.Start
+V.Local.dateBegBefore.Declare
+V.Local.dateBegYear.Declare
+V.Local.dateFrom.Declare
+V.Local.dateEnd.Declare
+V.Local.dateLast.Declare
+V.Local.fAccountIn1.Declare
+V.Local.fAccountIn2.Declare
+V.Local.fAccountIn3.Declare
+V.Local.fAccountIn4.Declare
+V.Local.fAccountIn5.Declare
+V.Local.fAccountOut1.Declare
+V.Local.fAccountOut2.Declare
+V.Local.fAccountOut3.Declare
+V.Local.fAccountOut4.Declare
+V.Local.fAccountOut5.Declare
+V.Local.fBegBal.Declare
+V.Local.fEnding1.Declare
+V.Local.fEnding2.Declare
+V.Local.fEnding3.Declare
+V.Local.fEnding4.Declare
+V.Local.fEnding5.Declare
+V.Local.fSummary.Declare
+V.Local.i1.Declare
+V.Local.i2.Declare
+V.Local.iC.Declare
+V.Local.iDiff1.Declare
+V.Local.iDiff2.Declare
+V.Local.iReportID.Declare
+V.Local.iRow.Declare
+V.Local.sBIParam.Declare
+V.Local.sBIParamVal.Declare
+V.Local.sColumn.Declare
+V.Local.sDescription.Declare
+V.Local.sFilter.Declare
+V.Local.sFullMonth.Declare
+V.Local.sPeriod.Declare
+V.Local.sRet1.Declare
+V.Local.sRet2.Declare
+V.Local.sDateBegYear.Declare
+V.Local.sSQL.Declare
+V.Local.sCurr1.Declare
+V.Local.sCurr2.Declare
+V.Local.sCurr3.Declare
+V.Local.sCurr4.Declare
+V.Local.sCurr5.Declare
+V.Local.iCount.Declare
+
+Gui.F_Rpt.GsGCIn.Visible(False)
+Gui.F_Rpt.GsGCOut.Visible(False)
+
+F.Intrinsic.UI.InvokeWaitDialog("Loading...","Cash Flow Statement (5942)")
+
+V.Local.sRet1.Set(V.Screen.F_Rpt!ddlPeriod.Text)
+V.Local.sRet2.Set(V.Screen.F_Rpt!ddlYear.Text)
+
+F.Intrinsic.Control.If(V.Local.sRet1.Trim,=,"")
+	F.Intrinsic.UI.Msgbox("Fiscal period and year must be selected")
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Else
+	F.Intrinsic.Control.If(V.Local.sRet2.Trim,=,"")
+		F.Intrinsic.UI.Msgbox("Fiscal period and year must be selected")
+		F.Intrinsic.Control.ExitSub
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.String.LPad(V.Screen.F_Rpt!ddlPeriod.Value,"0",2,V.Local.sPeriod)
+
+F.Intrinsic.String.Concat("0101",V.Local.sRet2,V.Local.sDateBegYear)
+F.Intrinsic.Date.ConvertDString(V.Local.sDateBegYear,"MM/DD/YYYY",V.Local.dateBegYear)
+
+'Get beginning and end date for the selected period
+F.Intrinsic.String.Build("select beg_date, end_date from v_gl_calendar where start_year = '{0}' and period = '{1}'",V.Screen.F_Rpt!ddlYear.Value,V.Local.sPeriod.Trim,V.Local.sSQL)
+F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+V.Local.dateFrom.Set(V.ODBC.conx!rst.FieldVal!beg_date)
+V.Local.dateEnd.Set(V.ODBC.conx!rst.FieldVal!end_date)
+F.ODBC.conx!rst.Close
+
+'Get 1 day before from date
+F.Intrinsic.Date.DateAdd("D",-1,V.Local.dateFrom,V.Local.dateBegBefore)
+
+'Get all rows
+F.Data.DataTable.CreateFromSQL("dtRow","conx","select id as ID, description as Description, flag_in_out as Flag from GAB_5942_RPT_ROW order by id",True)
+F.Data.DataTable.AddColumn("dtRow","Account1","Float",0)
+F.Data.DataTable.AddColumn("dtRow","Account2","Float",0)
+F.Data.DataTable.AddColumn("dtRow","Account3","Float",0)
+F.Data.DataTable.AddColumn("dtRow","Account4","Float",0)
+F.Data.DataTable.AddColumn("dtRow","Account5","Float",0)
+
+'Beginning balance
+F.Data.DataTable.Create("dtBegBal",True)
+F.Data.DataTable.AddColumn("dtBegBal","Account1","Float")
+F.Data.DataTable.AddColumn("dtBegBal","Account2","Float")
+F.Data.DataTable.AddColumn("dtBegBal","Account3","Float")
+F.Data.DataTable.AddColumn("dtBegBal","Account4","Float")
+F.Data.DataTable.AddColumn("dtBegBal","Account5","Float")
+F.Data.DataTable.AddRow("dtBegBal","Account1",0,"Account2",0,"Account3",0,"Account4",0,"Account5",0)
+
+'Get all batches within the selected data range
+F.Intrinsic.String.Build("select batch as Batch, line as Line, amount as Amount, id as ID, cash_account as GLAccount from GAB_5942_RPT_DETAIL where post_date_sql between '{0}' and '{1}'",V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,V.Local.sSQL)
+F.Data.DataTable.CreateFromSQL("dtDetail","conx",V.Local.sSQL,True)
+
+'Check if today's date is within the month
+F.Intrinsic.Date.DateDiff("D",V.Local.dateFrom,V.Ambient.Date,V.Local.iDiff1)
+F.Intrinsic.Date.DateDiff("D",V.Ambient.Date,V.Local.dateEnd,V.Local.iDiff2)
+
+F.Intrinsic.Control.If(V.Local.iDiff1,>,0)
+F.Intrinsic.Control.AndIf(V.Local.iDiff2,>,0)
+	V.Local.sFullMonth.Set("N")
+F.Intrinsic.Control.Else
+	V.Local.sFullMonth.Set("Y")
+F.Intrinsic.Control.EndIf	
+
+'Go through every cash account
+F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtAcct.RowCount--,1)
+	F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.iC)
+	F.Intrinsic.String.Concat("Account",V.Local.iC,V.Local.sColumn)
+	'Get year beginning balance
+'	F.Intrinsic.String.Build("select beg_bal from v_gl_balances where fiscal_yr = '{0}' and acct = '{1}'",V.Local.sRet1(1).Trim,V.DataTable.dtAcct(V.Local.i1).GLAccount!FieldValTrim,V.Local.sSQL)
+	F.Intrinsic.String.Build("select beg_bal from v_gl_balances where fiscal_yr = '{0}' and acct = '{1}'",V.Local.sRet2.Trim,V.DataTable.dtAcct(V.Local.i1).GLAccount!FieldValTrim,V.Local.sSQL)
+	F.ODBC.Connection!conx.ExecuteAndReturn(V.Local.sSQL,V.Local.fBegBal)
+	F.Intrinsic.Math.Add(V.Local.fBegBal,0,V.Local.fBegBal)
+	'Get sum of all transactions until from date
+'	F.Intrinsic.String.Build("select sum(amount_cmpny) from v_gl_journal_dtl where gl_number = '{0}' and post_date_sql between '{1}' and '{2}'",V.DataTable.dtAcct(V.Local.i1).GLAccount!FieldValTrim,V.Local.dateBegYear.PervasiveDate,V.Local.dateBegBefore.PervasiveDate,V.Local.sSQL)
+	F.Intrinsic.String.Build("select sum(amount_cmpny) from v_gl_detail where gl_number = '{0}' and post_date_sql between '{1}' and '{2}'",V.DataTable.dtAcct(V.Local.i1).GLAccount!FieldValTrim,V.Local.dateBegYear.PervasiveDate,V.Local.dateBegBefore.PervasiveDate,V.Local.sSQL)
+	F.ODBC.Connection!conx.ExecuteAndReturn(V.Local.sSQL,V.Local.fSummary)
+	F.Intrinsic.Math.Add(V.Local.fSummary,0,V.Local.fSummary)
+
+	F.Intrinsic.Math.Add(V.Local.fBegBal,V.Local.fSummary,V.Local.fBegBal)
+	F.Data.DataTable.SetValue("dtBegBal",0,V.Local.sColumn,V.Local.fBegBal)
+
+	F.Intrinsic.Control.For(V.Local.i2,0,V.DataTable.dtRow.RowCount--,1)
+		F.Intrinsic.String.Build("ID = {0} and GLAccount = '{1}'",V.DataTable.dtRow(V.Local.i2).ID!FieldVal,V.DataTable.dtAcct(V.Local.i1).GLAccount!FieldValTrim,V.Local.sFilter)
+		F.Data.DataTable.Compute("dtDetail","SUM(Amount)",V.Local.sFilter,V.Local.fSummary)
+		F.Data.DataTable.SetValue("dtRow",V.Local.i2,V.Local.sColumn,V.Local.fSummary)
+	F.Intrinsic.Control.Next(V.Local.i2)
+
+	'Get currency from each accounts for Header Report
+	F.Intrinsic.Control.If(V.Local.iC,=,1)
+		V.Local.sCurr1.Set(V.DataTable.dtAcct(V.Local.i1).Currency!FieldValTrim)
+	F.Intrinsic.Control.Elseif(V.Local.iC,=,2)
+		V.Local.sCurr2.Set(V.DataTable.dtAcct(V.Local.i1).Currency!FieldValTrim)
+	F.Intrinsic.Control.Elseif(V.Local.iC,=,3)
+		V.Local.sCurr3.Set(V.DataTable.dtAcct(V.Local.i1).Currency!FieldValTrim)
+	F.Intrinsic.Control.Elseif(V.Local.iC,=,4)
+		V.Local.sCurr4.Set(V.DataTable.dtAcct(V.Local.i1).Currency!FieldValTrim)
+	F.Intrinsic.Control.Elseif(V.Local.iC,=,5)
+		V.Local.sCurr5.Set(V.DataTable.dtAcct(V.Local.i1).Currency!FieldValTrim)
+	F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Next(V.Local.i1)
+
+'Delete current report record for terminal no
+F.Intrinsic.String.Build("delete from GAB_5942_RPT_PRINT where terminal_no = '{0}'",V.Caller.Terminal,V.Local.sSQL)
+F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+
+'Write records to GAB_5942_RPT_PRINT
+V.Local.iRow.Set(1)
+'Beginning balance
+F.Intrinsic.String.Format(V.Local.dateFrom,"DD.MM.YY",V.Local.sDescription)
+F.Intrinsic.String.Concat("Balance on ",V.Local.sDescription,V.Local.sDescription)
+F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,V.Local.sDescription,V.DataTable.dtBegBal(0).Account1!FieldVal,V.DataTable.dtBegBal(0).Account2!FieldVal,V.DataTable.dtBegBal(0).Account3!FieldVal,V.DataTable.dtBegBal(0).Account4!FieldVal,V.DataTable.dtBegBal(0).Account5!FieldVal,V.Local.sSQL)
+F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+'Blank line
+F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+V.Local.sFilter.Set("Flag = 1")
+F.Data.DataView.Create("dtRow","dvRowIn",22,V.Local.sFilter,"")
+'F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtRow.RowCount--,1)
+F.Intrinsic.Control.For(V.Local.i1,0,V.DataView.dtRow!dvRowIn.RowCount--,1)
+	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,V.DataView.dtRow!dvRowIn(V.Local.i1).Description!FieldValTrim,V.DataView.dtRow!dvRowIn(V.Local.i1).Account1!FieldVal,V.DataView.dtRow!dvRowIn(V.Local.i1).Account2!FieldVal,V.DataView.dtRow!dvRowIn(V.Local.i1).Account3!FieldVal,V.DataView.dtRow!dvRowIn(V.Local.i1).Account4!FieldVal,V.DataView.dtRow!dvRowIn(V.Local.i1).Account5!FieldVal,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+	F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.iCount)
+
+'	F.Intrinsic.Control.If(V.DataView.dtRow!dvRowIn(V.Local.i1).ID!FieldVal,=,4)
+	F.Intrinsic.Control.If(V.Local.iCount,=,V.DataView.dtRow!dvRowIn.RowCount)
+		'Blank line
+		F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+		'Blank line
+		F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+		'Total cash receipts
+'		F.Data.DataTable.Compute("dtRow","SUM(Account1)","ID < 5",V.Local.fAccountIn1)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account2)","ID < 5",V.Local.fAccountIn2)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account3)","ID < 5",V.Local.fAccountIn3)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account4)","ID < 5",V.Local.fAccountIn4)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account5)","ID < 5",V.Local.fAccountIn5)
+		F.Data.DataTable.Compute("dtRow","SUM(Account1)","flag = 1",V.Local.fAccountIn1)
+		F.Data.DataTable.Compute("dtRow","SUM(Account2)","flag = 1",V.Local.fAccountIn2)
+		F.Data.DataTable.Compute("dtRow","SUM(Account3)","flag = 1",V.Local.fAccountIn3)
+		F.Data.DataTable.Compute("dtRow","SUM(Account4)","flag = 1",V.Local.fAccountIn4)
+		F.Data.DataTable.Compute("dtRow","SUM(Account5)","flag = 1",V.Local.fAccountIn5)
+		F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Total Balance",V.Local.fAccountIn1,V.Local.fAccountIn2,V.Local.fAccountIn3,V.Local.fAccountIn4,V.Local.fAccountIn5,V.Local.sSQL)
+		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+		'Blank line
+		F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i1)
+F.Data.DataView.Close("dtRow","dvRowIn")
+
+V.Local.sFilter.Set("Flag = 0")
+F.Data.DataView.Create("dtRow","dvRowOut",22,V.Local.sFilter,"")
+'F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtRow.RowCount--,1)
+F.Intrinsic.Control.For(V.Local.i1,0,V.DataView.dtRow!dvRowOut.RowCount--,1)
+	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,V.DataView.dtRow!dvRowOut(V.Local.i1).Description!FieldValTrim,V.DataView.dtRow!dvRowOut(V.Local.i1).Account1!FieldVal,V.DataView.dtRow!dvRowOut(V.Local.i1).Account2!FieldVal,V.DataView.dtRow!dvRowOut(V.Local.i1).Account3!FieldVal,V.DataView.dtRow!dvRowOut(V.Local.i1).Account4!FieldVal,V.DataView.dtRow!dvRowOut(V.Local.i1).Account5!FieldVal,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+	F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.iCount)
+
+'	F.Intrinsic.Control.If(V.DataView.dtRow!dvRowOut(V.Local.i1).ID!FieldVal,=,4)
+'	F.Intrinsic.Control.If(V.Local.iCount,=,V.DataView.dtRow!dvRowOut.RowCount)
+		'Blank line
+'		F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+'		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'		F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+		'Blank line
+'		F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+'		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'		F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+		'Total cash receipts
+'		F.Data.DataTable.Compute("dtRow","SUM(Account1)","ID < 5",V.Local.fAccountIn1)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account2)","ID < 5",V.Local.fAccountIn2)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account3)","ID < 5",V.Local.fAccountIn3)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account4)","ID < 5",V.Local.fAccountIn4)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account5)","ID < 5",V.Local.fAccountIn5)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account1)","flag = 1",V.Local.fAccountIn1)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account2)","flag = 1",V.Local.fAccountIn2)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account3)","flag = 1",V.Local.fAccountIn3)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account4)","flag = 1",V.Local.fAccountIn4)
+'		F.Data.DataTable.Compute("dtRow","SUM(Account5)","flag = 1",V.Local.fAccountIn5)
+'		F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Total Balance",V.Local.fAccountIn1,V.Local.fAccountIn2,V.Local.fAccountIn3,V.Local.fAccountIn4,V.Local.fAccountIn5,V.Local.sSQL)
+'		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'		F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+		'Blank line
+'		F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+'		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'		F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i1)
+F.Data.DataView.Close("dtRow","dvRowOut")
+
+'Blank line
+F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'Blank line
+F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+'Total payments
+'F.Data.DataTable.Compute("dtRow","SUM(Account1)","ID > 4",V.Local.fAccountOut1)
+'F.Data.DataTable.Compute("dtRow","SUM(Account2)","ID > 4",V.Local.fAccountOut2)
+'F.Data.DataTable.Compute("dtRow","SUM(Account3)","ID > 4",V.Local.fAccountOut3)
+'F.Data.DataTable.Compute("dtRow","SUM(Account4)","ID > 4",V.Local.fAccountOut4)
+'F.Data.DataTable.Compute("dtRow","SUM(Account5)","ID > 4",V.Local.fAccountOut5)
+F.Data.DataTable.Compute("dtRow","SUM(Account1)","flag = 0",V.Local.fAccountOut1)
+F.Data.DataTable.Compute("dtRow","SUM(Account2)","flag = 0",V.Local.fAccountOut2)
+F.Data.DataTable.Compute("dtRow","SUM(Account3)","flag = 0",V.Local.fAccountOut3)
+F.Data.DataTable.Compute("dtRow","SUM(Account4)","flag = 0",V.Local.fAccountOut4)
+F.Data.DataTable.Compute("dtRow","SUM(Account5)","flag = 0",V.Local.fAccountOut5)
+F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Increase/(Decrease) in Cash",V.Local.fAccountOut1,V.Local.fAccountOut2,V.Local.fAccountOut3,V.Local.fAccountOut4,V.Local.fAccountOut5,V.Local.sSQL)
+F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+'Blank line
+F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+'Ending balance
+F.Intrinsic.Math.Add(V.DataTable.dtBegBal(0).Account1!FieldVal,V.Local.fAccountIn1,V.Local.fAccountOut1,V.Local.fEnding1)
+F.Intrinsic.Math.Add(V.DataTable.dtBegBal(0).Account2!FieldVal,V.Local.fAccountIn2,V.Local.fAccountOut2,V.Local.fEnding2)
+F.Intrinsic.Math.Add(V.DataTable.dtBegBal(0).Account3!FieldVal,V.Local.fAccountIn3,V.Local.fAccountOut3,V.Local.fEnding3)
+F.Intrinsic.Math.Add(V.DataTable.dtBegBal(0).Account4!FieldVal,V.Local.fAccountIn4,V.Local.fAccountOut4,V.Local.fEnding4)
+F.Intrinsic.Math.Add(V.DataTable.dtBegBal(0).Account5!FieldVal,V.Local.fAccountIn5,V.Local.fAccountOut5,V.Local.fEnding5)
+F.Intrinsic.Control.If(V.Local.sFullMonth.Trim,=,"Y")
+	F.Intrinsic.String.Format(V.Local.dateEnd,"DD.MM.YY",V.Local.sDescription)
+F.Intrinsic.Control.Else
+	F.Intrinsic.String.Format(V.Ambient.Date,"DD.MM.YY",V.Local.sDescription)
+F.Intrinsic.Control.EndIf
+F.Intrinsic.String.Concat("Total Balance on ",V.Local.sDescription,V.Local.sDescription)
+F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,V.Local.sDescription,V.Local.fEnding1,V.Local.fEnding2,V.Local.fEnding3,V.Local.fEnding4,V.Local.fEnding5,V.Local.sSQL)
+F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+'Not full month report
+F.Intrinsic.Control.If(V.Local.sFullMonth.Trim,=,"N")
+	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+	F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtIn.RowCount--,1)
+		F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,V.DataTable.dtIn(V.Local.i1).Description!FieldValTrim,V.DataTable.dtIn(V.Local.i1).Account1!FieldVal,V.DataTable.dtIn(V.Local.i1).Account2!FieldVal,V.DataTable.dtIn(V.Local.i1).Account3!FieldVal,V.DataTable.dtIn(V.Local.i1).Account4!FieldVal,V.DataTable.dtIn(V.Local.i1).Account5!FieldVal,V.Local.sSQL)
+		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+	F.Intrinsic.Control.Next(V.Local.i1)
+
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Estimate receipts from customers",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Interest income",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"GST refund",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Fund transfer to UOB (USD)",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Other receipts",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+	F.Data.DataTable.Compute("dtIn","SUM(Account1)","",V.Local.fAccountIn1)
+	F.Data.DataTable.Compute("dtIn","SUM(Account2)","",V.Local.fAccountIn2)
+	F.Data.DataTable.Compute("dtIn","SUM(Account3)","",V.Local.fAccountIn3)
+	F.Data.DataTable.Compute("dtIn","SUM(Account4)","",V.Local.fAccountIn4)
+	F.Data.DataTable.Compute("dtIn","SUM(Account5)","",V.Local.fAccountIn5)
+
+	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Total Receipts (Estimated)",V.Local.fAccountIn1,V.Local.fAccountIn2,V.Local.fAccountIn3,V.Local.fAccountIn4,V.Local.fAccountIn5,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+	F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtOut.RowCount--,1)
+		F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,V.DataTable.dtOut(V.Local.i1).Description!FieldValTrim,V.DataTable.dtOut(V.Local.i1).Account1!FieldVal,V.DataTable.dtOut(V.Local.i1).Account2!FieldVal,V.DataTable.dtOut(V.Local.i1).Account3!FieldVal,V.DataTable.dtOut(V.Local.i1).Account4!FieldVal,V.DataTable.dtOut(V.Local.i1).Account5!FieldVal,V.Local.sSQL)
+		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+	F.Intrinsic.Control.Next(V.Local.i1)
+
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Payments to suppliers",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Adhoc payment to suppliers",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Salaries+CPF+FWL+SDL",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Payment to EQT",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Payment to MT",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Payment to GES",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Staff claims",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Fund transfer to UOB (SGD)",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+'	
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Other payment",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+	F.Data.DataTable.Compute("dtOut","SUM(Account1)","",V.Local.fAccountOut1)
+	F.Data.DataTable.Compute("dtOut","SUM(Account2)","",V.Local.fAccountOut2)
+	F.Data.DataTable.Compute("dtOut","SUM(Account3)","",V.Local.fAccountOut3)
+	F.Data.DataTable.Compute("dtOut","SUM(Account4)","",V.Local.fAccountOut4)
+	F.Data.DataTable.Compute("dtOut","SUM(Account5)","",V.Local.fAccountOut5)
+
+	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Total Payments(Estimated)",V.Local.fAccountOut1,V.Local.fAccountOut2,V.Local.fAccountOut3,V.Local.fAccountOut4,V.Local.fAccountOut5,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+	F.Intrinsic.Math.Add(V.Local.fAccountIn1,V.Local.fAccountOut1,V.Local.fAccountOut1)
+	F.Intrinsic.Math.Add(V.Local.fAccountIn2,V.Local.fAccountOut2,V.Local.fAccountOut2)
+	F.Intrinsic.Math.Add(V.Local.fAccountIn3,V.Local.fAccountOut3,V.Local.fAccountOut3)
+	F.Intrinsic.Math.Add(V.Local.fAccountIn4,V.Local.fAccountOut4,V.Local.fAccountOut4)
+	F.Intrinsic.Math.Add(V.Local.fAccountIn5,V.Local.fAccountOut5,V.Local.fAccountOut5)
+
+	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Increase/(Decrease) in Cash",V.Local.fAccountOut1,V.Local.fAccountOut2,V.Local.fAccountOut3,V.Local.fAccountOut4,V.Local.fAccountOut5,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+'	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"Increase/(Decrease) in Cash",V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description) values('{0}',{1},'{2}','{3}','{4}');",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,"",V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+
+	F.Intrinsic.Math.Add(V.Local.fEnding1,V.Local.fAccountOut1,V.Local.fEnding1)
+	F.Intrinsic.Math.Add(V.Local.fEnding2,V.Local.fAccountOut2,V.Local.fEnding2)
+	F.Intrinsic.Math.Add(V.Local.fEnding3,V.Local.fAccountOut3,V.Local.fEnding3)
+	F.Intrinsic.Math.Add(V.Local.fEnding4,V.Local.fAccountOut4,V.Local.fEnding4)
+	F.Intrinsic.Math.Add(V.Local.fEnding5,V.Local.fAccountOut5,V.Local.fEnding5)
+
+	F.Intrinsic.String.Format(V.Local.dateEnd,"DD.MM.YY",V.Local.sDescription)
+	F.Intrinsic.String.Concat("Total Balance on ",V.Local.sDescription,V.Local.sDescription)
+	F.Intrinsic.String.Build("insert into GAB_5942_RPT_PRINT(terminal_no,row,date_beg,date_end,description,cash_acct_1,cash_acct_2,cash_acct_3,cash_acct_4,cash_acct_5) values('{0}',{1},'{2}','{3}','{4}',{5},{6},{7},{8},{9});",V.Caller.Terminal,V.Local.iRow,V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,V.Local.sDescription,V.Local.fEnding1,V.Local.fEnding2,V.Local.fEnding3,V.Local.fEnding4,V.Local.fEnding5,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.Math.Add(V.Local.iRow,1,V.Local.iRow)
+F.Intrinsic.Control.EndIf
+
+F.Data.DataTable.Close("dtBegBal")
+F.Data.DataTable.Close("dtRow")
+F.Data.DataTable.Close("dtDetail")
+'F.Data.DataTable.Close("dtAcct")
+
+F.Global.BI.GetIDFromName("GAB_5942_CASH_FLOW_STMNT.rpt",V.Local.iReportID)
+
+F.Intrinsic.Control.If(V.Local.iReportID,=,-1)
+	F.Intrinsic.UI.Msgbox("Cash flow statement report has not been setup. Please tell your administrator to setup the report.")
+F.Intrinsic.Control.Else
+	F.Intrinsic.String.Split("TerminalNo*!*Curr1*!*Curr2*!*Curr3*!*Curr4*!*Curr5","*!*",V.Local.sBIParam)
+	F.Intrinsic.String.Concat(V.Caller.Terminal,"*!*",V.Local.sCurr1,"*!*",V.Local.sCurr2,"*!*",V.Local.sCurr3,"*!*",V.Local.sCurr4,"*!*",V.Local.sCurr5,V.Local.sBIParamVal)
+	F.Intrinsic.String.Split(V.Local.sBIParamVal,"*!*",V.Local.sBIParamVal)
+	F.Global.BI.PrintReport(V.Local.iReportID,16,V.Local.sBIParam,V.Local.sBIParamVal,"GSView",True)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.CallSub(ddl_Click)
+Program.Sub.cmdPrint_Click.End
+
+Program.Sub.EstimateReceipts.Start
+V.Local.dateEnd.Declare
+V.Local.dateMonthEnd.Declare
+V.Local.fAmount.Declare
+V.Local.sFilter.Declare
+V.Local.sSQL.Declare
+V.Local.sTransDate.Declare
+
+V.Local.dateEnd.Set(V.Args.dateEnd)
+F.Intrinsic.Date.EndOfMonth(V.Local.dateEnd,V.Local.dateMonthEnd)
+
+'Get all AR invoice for date invoice before end of month
+F.Intrinsic.String.Build("select customer as Customer, invoice as Invoice, rtrim(customer)+rtrim(invoice) as CI, due_date as DueDate from v_ar_open_items where date_invoice < '{0}' and batch_code = '10'",V.Local.dateMonthEnd.PervasiveDate,V.Local.sSQL)
+F.Data.DataTable.CreateFromSQL("dtAR","conx",V.Local.sSQL)
+F.Data.DataTable.AddColumn("dtAR","Amount","Float",0)
+
+'Get the outstanding amount of every invoice where transaction date is before end of month
+F.Intrinsic.String.Build("select rtrim(customer)+rtrim(invoice), sum(amt_invoice) from v_ar_open_items where date_transaction <= '{0}' group by customer,invoice",V.Local.dateMonthEnd.PervasiveDate,V.Local.sSQL)
+F.Data.Dictionary.CreateFromSQL("dicAR","conx",V.Local.sSQL)
+F.Data.Dictionary.SetDefaultReturn("dicAR",0)
+F.Data.DataTable.FillFromDictionary("dtAR","dicAR","CI","Amount")
+F.Data.Dictionary.Close("dicAR")
+
+F.Intrinsic.String.Format(V.Local.dateMonthEnd,"M/D/YYYY",V.Local.sTransDate)
+F.Intrinsic.String.Build("DueDate <= #{0}#",V.Local.sTransDate,V.Local.sFilter)
+F.Data.DataTable.Compute("dtAR","SUM(Amount)",V.Local.sFilter,V.Local.fAmount)
+F.Intrinsic.Math.Add(V.Local.fAmount,0,V.Local.fAmount)
+
+F.Data.DataTable.Close("dtAR")
+
+F.Intrinsic.Variable.AddRV("TotalAR",V.Local.fAmount)
+Program.Sub.EstimateReceipts.End
+
+Program.Sub.ddl_Click.Start
+F.Intrinsic.String.LPad(V.Screen.F_Rpt!ddlPeriod.Value,"0",2,V.Global.sPeriod)
+V.Global.sYear.Set(V.Screen.F_Rpt!ddlYear.Text)
+F.Intrinsic.Control.CallSub(ddl_Process)
+Program.Sub.ddl_Click.End
+
+Program.Sub.ddl_Process.Start
+V.Local.i1.Declare
+V.Local.i2.Declare
+V.Local.sColumn.Declare
+V.Local.sPeriod.Declare
+V.Local.sSQL.Declare
+V.Local.sValue.Declare
+V.Local.sYear.Declare
+V.Local.sFilter.Declare
+V.Local.dateFrom.Declare
+V.Local.dateEnd.Declare
+V.Local.fSummary.Declare
+V.Local.sRet.Declare
+V.Local.iC.Declare
+V.Local.sRet1.Declare
+
+F.Intrinsic.Control.If(V.DataTable.dtIn.Exists)
+	F.Data.DataTable.Close("dtIn")
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.If(V.DataTable.dtOut.Exists)
+	F.Data.DataTable.Close("dtOut")
+F.Intrinsic.Control.EndIf
+
+'Get beginning and end date for the selected period
+F.Intrinsic.String.Build("select beg_date, end_date from v_gl_calendar where start_year = '{0}' and period = '{1}'",V.Global.sYear.Trim,V.Global.sPeriod.Trim,V.Local.sSQL)
+
+F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+V.Local.dateFrom.Set(V.ODBC.conx!rst.FieldVal!beg_date)
+V.Local.dateEnd.Set(V.ODBC.conx!rst.FieldVal!end_date)
+F.ODBC.conx!rst.Close
+
+'Get total AR before end of month by currency
+F.Intrinsic.String.Build("select If(Exchange_Curr<>'',Exchange_Curr,'{1}') as ExchCurr, amt_invoice as Amount from v_ar_open_items where due_date <= '{0}'",V.Local.dateEnd.PervasiveDate,V.Global.sBaseCurr,V.Local.sSQL)
+F.Data.DataTable.CreateFromSQL("dtAR","conx",V.Local.sSQL)
+'Get total AP before end of month by currency
+F.Intrinsic.String.Build("select If(Exchange_Curr<>'',Exchange_Curr,'{1}') as ExchCurr, CASE BATCH_CODE WHEN '11' THEN AMT_TRANSACTION WHEN '12' THEN AMT_TRANSACTION ELSE -AMT_TRANSACTION END AS Amount from v_ap_open_items where date_invoice_due <= '{0}' and batch_code <> '09'",V.Local.dateEnd.PervasiveDate,V.Global.sBaseCurr,V.Local.sSQL)
+F.Data.DataTable.CreateFromSQL("dtAP","conx",V.Local.sSQL)
+
+'Get all batches within the selected data range
+F.Intrinsic.String.Build("select batch as Batch, line as Line, amount as Amount, id as ID, cash_account as GLAccount from GAB_5942_RPT_DETAIL where post_date_sql between '{0}' and '{1}'",V.Local.dateFrom.PervasiveDate,V.Local.dateEnd.PervasiveDate,V.Local.sSQL)
+F.Data.DataTable.CreateFromSQL("dtDetail","conx",V.Local.sSQL,True)
+
+'Get the estimated amount previously entered by user
+F.Intrinsic.Control.If(V.Global.sPeriod.Trim,<>,"")
+	F.Intrinsic.Control.If(V.Global.sYear.Trim,<>,"")
+		'F.Intrinsic.Control.If(V.DataTable.dtIn.Exists,=,False)
+			F.Data.DataTable.CreateFromSQL("dtIn","conx","select id as ID, description as Description from gab_5942_rpt_row where flag_in_out = 1 order by id",True)
+			F.Intrinsic.Control.For(V.Local.i1,1,5,1)
+	'			F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.i2)
+				F.Intrinsic.String.Build("Account{0}",V.Local.i1,V.Local.sColumn)
+				F.Data.DataTable.AddColumn("dtIn",V.Local.sColumn,"Float",0)
+				
+	'			F.Intrinsic.String.Build("select row_id, CASH_ACCT_{0} from GAB_5942_RPT_EST where start_year = {1} and period = {2}",V.Local.i2,V.Local.sYear,V.Local.sPeriod,V.Local.sSQL)
+	'			F.Data.Dictionary.CreateFromSQL("dicVal","conx",V.Local.sSQL)
+	'			F.Data.Dictionary.SetDefaultReturn("dicVal",0)
+	'			F.Data.DataTable.FillFromDictionary("dtIn","dicVal","ID",V.Local.sColumn)
+	'			F.Data.Dictionary.Close("dicVal")
+			F.Intrinsic.Control.Next(V.Local.i1)
+			
+			F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtAcct.RowCount--,1)
+				F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.iC)
+				F.Intrinsic.String.Concat("Account",V.Local.iC,V.Local.sColumn)
+				F.Intrinsic.Control.If(V.DataTable.dtAcct(V.Local.i1).Default_Acct!FieldVal,=,1)
+					F.Intrinsic.String.Build("ExchCurr = '{0}'",V.DataTable.dtAcct(V.Local.i1).Currency!FieldValTrim,V.Local.sFilter)
+					F.Data.DataTable.Compute("dtAR","SUM(Amount)",V.Local.sFilter,V.Local.fSummary)
+					F.Data.DataTable.SetValue("dtin",0,V.Local.sColumn,V.Local.fSummary)
+				F.Intrinsic.Control.EndIf	
+			F.Intrinsic.Control.Next(V.Local.i1)	
+
+			F.Data.DataTable.SetValue("dtIn",0,"Description","Estimate receipts from customers")
+
+			Gui.F_Rpt.GsGCIn.AddGridviewFromDatatable("gvIn","dtIn")
+			Gui.F_Rpt.GsGCIn.MainView("gvIn")
+
+			Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn","ID","Visible",False)
+			Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn","Description","HeaderHAlignment","Center")
+			Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn","Description","HeaderFontBold",True)
+			Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn","Description","MinWidth","200")
+			Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn","Description","Fixed","Left")
+
+			F.Intrinsic.Control.For(V.Local.i1,1,5,1)
+	'			F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.i2)
+				F.Intrinsic.String.Build("Account{0}",V.Local.i1,V.Local.sColumn)
+
+				Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn",V.Local.sColumn,"HeaderHAlignment","Center")
+				Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn",V.Local.sColumn,"HeaderFontBold",True)
+				Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn",V.Local.sColumn,"MinWidth","110")
+				Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn",V.Local.sColumn,"DisplayCustomNumeric","##,###,##0.00")
+				Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn",V.Local.sColumn,"AllowEdit",True)
+				Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn",V.Local.sColumn,"ReadOnly",False)
+				F.Intrinsic.String.Build("Account {0}",V.Local.i1,V.Local.sValue)
+				Gui.F_Rpt.GsGCIn.SetColumnProperty("gvIn",V.Local.sColumn,"Caption",V.Local.sValue)
+			F.Intrinsic.Control.Next(V.Local.i1)
+
+'		F.Intrinsic.Control.EndIf
+
+'		F.Intrinsic.Control.If(V.DataTable.dtOut.Exists,=,False)
+			F.Data.DataTable.CreateFromSQL("dtOut","conx","select id as ID, description as Description from gab_5942_rpt_row where flag_in_out = 0 order by id",True)
+			F.Intrinsic.Control.For(V.Local.i1,1,5,1)
+	'			F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.i2)
+				F.Intrinsic.String.Build("Account{0}",V.Local.i1,V.Local.sColumn)
+				F.Data.DataTable.AddColumn("dtOut",V.Local.sColumn,"Float",0)
+
+	'			F.Intrinsic.String.Build("select row_id, CASH_ACCT_{0} from GAB_5942_RPT_EST where start_year = {1} and period = {2}",V.Local.i2,V.Local.sYear,V.Local.sPeriod,V.Local.sSQL)
+	'			F.Data.Dictionary.CreateFromSQL("dicVal","conx",V.Local.sSQL)
+	'			F.Data.Dictionary.SetDefaultReturn("dicVal",0)
+	'			F.Data.DataTable.FillFromDictionary("dtOut","dicVal","ID",V.Local.sColumn)
+	'			F.Data.Dictionary.Close("dicVal")
+			F.Intrinsic.Control.Next(V.Local.i1)
+
+			F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtAcct.RowCount--,1)
+				F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.iC)
+				F.Intrinsic.String.Concat("Account",V.Local.iC,V.Local.sColumn)
+'				f.Intrinsic.Debug.ShowCallerInfo
+				F.Intrinsic.Control.If(V.DataTable.dtAcct(V.Local.i1).Default_Acct!FieldVal,=,1)
+					F.Intrinsic.String.Build("ExchCurr = '{0}'",V.DataTable.dtAcct(V.Local.i1).Currency!FieldValTrim,V.Local.sFilter)
+					F.Data.DataTable.Compute("dtAP","SUM(Amount)",V.Local.sFilter,V.Local.fSummary)
+					F.Data.DataTable.SetValue("dtOut",0,V.Local.sColumn,V.Local.fSummary)
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.Next(V.Local.i1)
+
+			F.Data.DataTable.SetValue("dtOut",0,"Description","Estimate payments to vendors")	
+
+			Gui.F_Rpt.GsGCOUt.AddGridviewFromDatatable("gvOut","dtOut")
+			Gui.F_Rpt.GsGCOut.MainView("gvOut")
+
+			Gui.F_Rpt.GsGCOut.SetColumnProperty("gvOut","ID","Visible",False)
+			Gui.F_Rpt.GsGCOUt.SetColumnProperty("gvOut","Description","HeaderHAlignment","Center")
+			Gui.F_Rpt.GsGCOUt.SetColumnProperty("gvOut","Description","HeaderFontBold",True)
+			Gui.F_Rpt.GsGCOut.SetColumnProperty("gvOut","Description","MinWidth","200")
+			Gui.F_Rpt.GsGCOut.SetColumnProperty("gvOut","Description","Fixed","Left")
+
+			F.Intrinsic.Control.For(V.Local.i1,1,5,1)
+	'			F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.i2)
+				F.Intrinsic.String.Build("Account{0}",V.Local.i1,V.Local.sColumn)
+
+				Gui.F_Rpt.GsGCOut.SetColumnProperty("gvOut",V.Local.sColumn,"HeaderHAlignment","Center")
+				Gui.F_Rpt.GsGCOut.SetColumnProperty("gvOut",V.Local.sColumn,"HeaderFontBold",True)
+				Gui.F_Rpt.GsGCOut.SetColumnProperty("gvOut",V.Local.sColumn,"MinWidth","110")
+				Gui.F_Rpt.GsGCOut.SetColumnProperty("gvOut",V.Local.sColumn,"DisplayCustomNumeric","##,###,##0.00")
+				Gui.F_Rpt.GsGCOut.SetColumnProperty("gvOut",V.Local.sColumn,"AllowEdit",True)
+				Gui.F_Rpt.GsGCOut.SetColumnProperty("gvOut",V.Local.sColumn,"ReadOnly",False)
+				F.Intrinsic.String.Build("Account {0}",V.Local.i1,V.Local.sValue)
+				Gui.F_Rpt.GsGCOut.SetColumnProperty("gvOut",V.Local.sColumn,"Caption",V.Local.sValue)
+			F.Intrinsic.Control.Next(V.Local.i1)
+		'F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+F.Data.DataTable.Close("dtDetail")
+F.Data.DataTable.Close("dtAP")
+F.Data.DataTable.Close("dtAR")
+F.Intrinsic.UI.CloseWaitDialog
+Gui.F_Rpt.GsGCIn.Visible(True)
+Gui.F_Rpt.GsGCOut.Visible(True)
+Program.Sub.ddl_Process.End
+
+Program.Sub.SaveEstimated.Start
+V.Local.i1.Declare
+V.Local.iPeriod.Declare
+V.Local.iYear.Declare
+V.Local.sSQL.Declare
+
+V.Local.iPeriod.Set(V.Screen.F_Rpt!ddlPeriod.Text)
+V.Local.iYear.Set(V.Screen.F_Rpt!ddlYear.Text)
+
+F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtIn.RowCount--,1)
+
+F.Intrinsic.Control.Next(V.Local.i1)
+
+F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtOut.RowCount--,1)
+
+F.Intrinsic.Control.Next(V.Local.i1)
+Program.Sub.SaveEstimated.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$$}$12:00:00 AM$}$False
+Program.Sub.Comments.End
