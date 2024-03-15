@@ -1,0 +1,446 @@
+﻿Program.Sub.ScreenSU.Start
+Gui.F_Setup..Create
+Gui.F_Setup..Caption("Cash Flow Statement Setup [5942]")
+Gui.F_Setup..Size(14265,10020)
+Gui.F_Setup..MinX(0)
+Gui.F_Setup..MinY(0)
+Gui.F_Setup..Position(0,0)
+Gui.F_Setup..BackColor(-2147483633)
+Gui.F_Setup..MousePointer(0)
+Gui.F_Setup..Sizeable(False)
+Gui.F_Setup..Event(UnLoad,Unload)
+Gui.F_Setup.frameCash.Create(Frame)
+Gui.F_Setup.frameCash.Size(13920,2115)
+Gui.F_Setup.frameCash.Position(30,60)
+Gui.F_Setup.frameCash.Caption("Cash Account")
+Gui.F_Setup.frameCash.FontSize(9)
+Gui.F_Setup.GsGCAcct.Create(GsGridControl)
+Gui.F_Setup.GsGCAcct.Size(13725,1755)
+Gui.F_Setup.GsGCAcct.Position(105,255)
+Gui.F_Setup.GsGCAcct.Parent("frameCash")
+Gui.F_Setup.GsGCAcct.Event(RowCellClick,GsGCAcct_RowCellClick)
+Gui.F_Setup.frameOut.Create(Frame)
+Gui.F_Setup.frameOut.Size(6855,7065)
+Gui.F_Setup.frameOut.Position(7095,2310)
+Gui.F_Setup.frameOut.Caption("Outgoing")
+Gui.F_Setup.frameOut.FontSize(9)
+Gui.F_Setup.GsGCOut.Create(GsGridControl)
+Gui.F_Setup.GsGCOut.Size(6660,6180)
+Gui.F_Setup.GsGCOut.Position(105,780)
+Gui.F_Setup.GsGCOut.Parent("frameOut")
+Gui.F_Setup.GsGCOut.Event(CellValueChanged,GsGCOut_CellValueChanged)
+Gui.F_Setup.GsGCOut.Event(RowCellClick,GsGCOut_RowCellClick)
+Gui.F_Setup.cmdNewOut.Create(Button)
+Gui.F_Setup.cmdNewOut.Size(855,375)
+Gui.F_Setup.cmdNewOut.Position(75,300)
+Gui.F_Setup.cmdNewOut.Parent("frameOut")
+Gui.F_Setup.cmdNewOut.Caption("Add")
+Gui.F_Setup.cmdNewOut.FontSize(9)
+Gui.F_Setup.cmdNewOut.Event(Click,cmdNewOut_Click)
+Gui.F_Setup.frameIn.Create(Frame)
+Gui.F_Setup.frameIn.Size(6945,7050)
+Gui.F_Setup.frameIn.Position(30,2310)
+Gui.F_Setup.frameIn.Caption("Incoming")
+Gui.F_Setup.frameIn.FontSize(9)
+Gui.F_Setup.GsGCIn.Create(GsGridControl)
+Gui.F_Setup.GsGCIn.Size(6750,6180)
+Gui.F_Setup.GsGCIn.Position(75,765)
+Gui.F_Setup.GsGCIn.Parent("frameIn")
+Gui.F_Setup.GsGCIn.Event(CellValueChanged,GsGCIn_CellValueChanged)
+Gui.F_Setup.GsGCIn.Event(RowCellClick,GsGCIn_RowCellClick)
+Gui.F_Setup.cmdNewIn.Create(Button)
+Gui.F_Setup.cmdNewIn.Size(855,375)
+Gui.F_Setup.cmdNewIn.Position(75,300)
+Gui.F_Setup.cmdNewIn.Parent("frameIn")
+Gui.F_Setup.cmdNewIn.Caption("Add")
+Gui.F_Setup.cmdNewIn.FontSize(9)
+Gui.F_Setup.cmdNewIn.Event(Click,cmdNewIn_Click)
+Gui.F_Text..Create
+Gui.F_Text..Caption("New Category")
+Gui.F_Text..Size(9075,1200)
+Gui.F_Text..MinX(0)
+Gui.F_Text..MinY(0)
+Gui.F_Text..Position(0,0)
+Gui.F_Text..FontSize(9)
+Gui.F_Text..BackColor(-2147483633)
+Gui.F_Text..MousePointer(0)
+Gui.F_Text..Sizeable(False)
+Gui.F_Text..Event(UnLoad,F_Text_Unload)
+Gui.F_Text.txt1.Create(TextBox,"",True,6900,315,0,135,165,True,0,"Arial",9,-2147483643,1)
+Gui.F_Text.cmdSave.Create(Button)
+Gui.F_Text.cmdSave.Size(1440,375)
+Gui.F_Text.cmdSave.Position(7185,120)
+Gui.F_Text.cmdSave.Caption("Save")
+Gui.F_Text.cmdSave.FontSize(9)
+Gui.F_Text.cmdSave.Event(Click,cmdSave_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+V.Global.iID.Declare
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+V.Local.sIcon.Declare
+
+F.Intrinsic.String.Build("{0}\ART\gss2.ico",V.Caller.GlobalDir,V.Local.sIcon)
+Gui.F_Setup..Icon(V.Local.sIcon)
+Gui.F_Text..Icon(V.Local.sIcon)
+
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass,600)
+
+F.Intrinsic.Control.CallSub(LoadExistingRecords)
+
+'Gui.F_Setup.tab1.SetTab(0)
+Gui.F_Text..Sizeable(False)
+Gui.F_Setup..Sizeable(False)
+Gui.F_Setup..MaxButton(False)
+
+Gui.F_Setup..Show
+Program.Sub.Main.End
+
+Program.Sub.Unload.Start
+F.Data.DataTable.Close("dtAcct")
+F.Data.DataTable.Close("dtIn")
+F.Data.DataTable.Close("dtOut")
+'F.Data.DataTable.Close("dtGL")
+
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+Program.Sub.Unload.End
+
+Program.Sub.LoadExistingRecords.Start
+V.Local.i1.Declare
+V.Local.iID.Declare
+V.Local.sFilter.Declare
+V.Local.sRet.Declare
+V.Local.sSQL.Declare
+
+'Cash account previously setup
+F.Data.DataTable.CreateFromSQL("dtAcct","conx","select gl_number as GLAccount, ' ' as GLDescription, currency as Currency from gab_5942_cash_acct order by gl_number",True)
+F.Data.Dictionary.CreateFromSQL("dicGL","conx","select gl_account, descr from v_gl_master")
+F.Data.Dictionary.SetDefaultReturn("dicGL","")
+F.Data.DataTable.FillFromDictionary("dtAcct","dicGL","GLAccount","GLDescription")
+
+F.Data.DataTable.AddRow("dtAcct","GLAccount","","GLDescription","")
+
+F.Data.DataTable.AddColumn("dtAcct","Delete","Long",0)
+
+Gui.F_Setup.GsGCAcct.AddGridviewFromDatatable("gvAcct","dtAcct")
+Gui.F_Setup.GsGCAcct.MainView("gvAcct")
+
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","GLAccount","Caption","GL Account")
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","GLDescription","Caption","Account Description")
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","Delete","ShowCaption",False)
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","GLAccount","HeaderHAlignment","Center")
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","GLDescription","HeaderHAlignment","Center")
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","Currency","HeaderHAlignment","Center")
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","Currency","CellHAlignment","Center")
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","Delete","CellHAlignment","Center")
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","GLAccount","MinWidth","140")
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","GLDescription","MinWidth","250")
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","Currency","MinWidth","70")
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","Delete","MinWidth","70")
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","GLAccount","AllowEdit",False)
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","GLDescription","AllowEdit",False)
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","Currency","AllowEdit",False)
+Gui.F_Setup.GsGCAcct.SetColumnProperty("gvAcct","Delete","AllowEdit",False)
+Gui.F_Setup.GsGCAcct.ColumnEdit("gvAcct","Delete","EditorButton","Delete")
+
+'Flow in excluding receipts from customer
+F.Data.DataTable.CreateFromSQL("dtIn","conx","select id as ID, description as Description from gab_5942_rpt_row where flag_in_out = 1 order by id",True)
+F.Data.DataTable.AddColumn("dtIn","Delete","Long",0)
+
+F.Intrinsic.Control.If(V.DataTable.dtIn.RowCount,=,0)
+	F.Data.DataTable.AddRow("dtIn","ID",1,"Description","Receipts from customers")
+	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",1,"Receipts from customers",1,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Data.DataTable.AddRow("dtIn","ID",2,"Description","Interest income")
+	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",2,"Interest income",1,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Data.DataTable.AddRow("dtIn","ID",3,"Description","GST refund")
+'	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",3,"GST refund",1,V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Data.DataTable.AddRow("dtIn","ID",4,"Description","Company tax refund")
+'	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",4,"Company tax refund",1,V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Data.DataTable.AddRow("dtIn","ID",5,"Description","Property tax refund")
+'	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",5,"Property tax refund",1,V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Data.DataTable.AddRow("dtIn","ID",6,"Description","Transfer from EQT")
+'	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",6,"Transfer from EQT",1,V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Data.DataTable.AddRow("dtIn","ID",3,"Description","Fund transfer (In)")
+	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",3,"Fund transfer",1,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Data.DataTable.AddRow("dtIn","ID",4,"Description","Other receipts")
+	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",4,"Other receipts",1,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Control.EndIf
+
+Gui.F_Setup.GsGCIn.AddGridviewFromDatatable("gvIn","dtIn")
+Gui.F_Setup.GsGCIn.MainView("gvIn")
+
+Gui.F_Setup.GsGCIn.SetColumnProperty("gvIn","ID","Visible",False)
+Gui.F_Setup.GsGCIn.SetColumnProperty("gvIn","Description","HeaderHAlignment","Center")
+Gui.F_Setup.GsGCIn.SetColumnProperty("gvIn","Description","MinWidth","200")
+Gui.F_Setup.GsGCIn.SetColumnProperty("gvIn","Description","AllowEdit",True)
+Gui.F_Setup.GsGCIn.SetColumnProperty("gvIn","Description","ReadOnly",False)
+Gui.F_Setup.GsGCIn.SetColumnProperty("gvIn","Delete","ShowCaption",False)
+Gui.F_Setup.GsGCIn.SetColumnProperty("gvIn","Delete","MinWidth","100")
+Gui.F_Setup.GsGCIn.SetColumnProperty("gvIn","Delete","AllowEdit",False)
+Gui.F_Setup.GsGCIn.ColumnEdit("gvIn","Delete","EditorButton","Delete")
+
+'Flow out excluding payments to supplier
+F.Data.DataTable.CreateFromSQL("dtOut","conx","select id as ID, description as Description from gab_5942_rpt_row where flag_in_out = 0 order by id",True)
+F.Data.DataTable.AddColumn("dtOut","Delete","Long",0)
+
+F.Intrinsic.Control.If(V.DataTable.dtOut.RowCount,=,0)
+	F.Data.DataTable.AddRow("dtOut","ID",5,"Description","Payments to supplier")
+	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",5,"Payments to supplier",0,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Data.DataTable.AddRow("dtOut","ID",10,"Description","Salaries+CPF+FWL+SDL")
+'	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",10,"Salaries+CPF+FWL+SDL",0,V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Data.DataTable.AddRow("dtOut","ID",11,"Description","Payment to EQT")
+'	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",11,"Payment to EQT",0,V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Data.DataTable.AddRow("dtOut","ID",12,"Description","Payment to GES")
+'	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",12,"Payment to GES",0,V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Data.DataTable.AddRow("dtOut","ID",13,"Description","Company tax")
+'	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",13,"Company tax",0,V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Data.DataTable.AddRow("dtOut","ID",14,"Description","Staff claims")
+'	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",14,"Staff claims",0,V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Data.DataTable.AddRow("dtOut","ID",6,"Description","Other payment")
+	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",6,"Other/Misc. payment",0,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Data.DataTable.AddRow("dtOut","ID",7,"Description","Fund transfer (Out)")
+	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",7,"Fund transfer",0,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+'	F.Data.DataTable.AddRow("dtOut","ID",8,"Description","Fund transfer to UOB (USD)")
+'	F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",17,"Fund transfer to UOB (SGD)",0,V.Local.sSQL)
+'	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Control.EndIf
+
+Gui.F_Setup.GsGCOut.AddGridviewFromDatatable("gvOut","dtOut")
+Gui.F_Setup.GsGCOut.MainView("gvOut")
+
+Gui.F_Setup.GsGCOut.SetColumnProperty("gvOut","ID","Visible",False)
+Gui.F_Setup.GsGCOut.SetColumnProperty("gvOut","Description","HeaderHAlignment","Center")
+Gui.F_Setup.GsGCOut.SetColumnProperty("gvOut","Description","MinWidth","200")
+Gui.F_Setup.GsGCOut.SetColumnProperty("gvOut","Description","AllowEdit",True)
+Gui.F_Setup.GsGCOut.SetColumnProperty("gvOut","Description","ReadOnly",False)
+Gui.F_Setup.GsGCOut.SetColumnProperty("gvOut","Delete","ShowCaption",False)
+Gui.F_Setup.GsGCOut.SetColumnProperty("gvOut","Delete","MinWidth","100")
+Gui.F_Setup.GsGCOut.SetColumnProperty("gvOut","Delete","AllowEdit",False)
+Gui.F_Setup.GsGCOut.ColumnEdit("gvOut","Delete","EditorButton","Delete")
+
+'F.Intrinsic.Control.CallSub(LoadGL)
+
+F.Data.Dictionary.Close("dicGL")
+Program.Sub.LoadExistingRecords.End
+
+Program.Sub.GsGCAcct_RowCellClick.Start
+V.Local.iWidths.Declare
+V.Local.sFilter.Declare
+V.Local.sRet.Declare
+V.Local.sSQL.Declare
+V.Local.sTitles.Declare
+
+F.Intrinsic.Control.If(V.Args.Column,=,"Delete")
+	F.Intrinsic.Control.If(V.DataTable.dtAcct(V.Args.RowIndex).GLAccount!FieldValTrim,<>,"")
+		F.Intrinsic.String.Build("delete from gab_5942_cash_acct where gl_number = '{0}'",V.DataTable.dtAcct(V.Args.RowIndex).GLAccount!FieldValTrim,V.Local.sSQL)
+		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		F.Data.DataTable.DeleteRow("dtAcct",V.Args.RowIndex)
+		F.Data.DataTable.AcceptChanges("dtAcct")
+		
+		F.Intrinsic.Control.If(V.DataTable.dtAcct.RowCount,<,5)
+			F.Intrinsic.Control.If(V.DataTable.dtAcct(V.DataTable.dtAcct.RowCount--).GLAccount!FieldValTrim,<>,"")
+				F.Data.DataTable.AddRow("dtAcct","GLAccount","","GLDescription","","Currency","")
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.EndIf
+		
+'		F.Intrinsic.Control.CallSub(LoadGL)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Else
+	F.Intrinsic.String.Split("GL Account*!*Account Description*!*Currency","*!*",V.Local.sTitles)
+	F.Intrinsic.String.Split("1200*!*3000*!*900","*!*",V.Local.iWidths)
+	
+	F.Intrinsic.UI.SetBrowserHotTypeAhead(True)
+	F.Intrinsic.UI.Browser("Select a GL account","conx","select C1.gl_cash_acct, C2.descr, C1.exch_curr from v_cash_account C1 left join v_gl_master C2 on C1.gl_cash_acct = C2.gl_account order by C1.gl_cash_acct",V.Local.sTitles,V.Local.iWidths,V.Local.sRet)
+	
+	F.Intrinsic.Control.If(V.Local.sRet,<>,"***CANCEL***")
+		F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+		F.Intrinsic.String.Build("select * from gab_5942_cash_acct where gl_number = '{0}'",V.Local.sRet(0).Trim,V.Local.sSQL)
+		F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+		F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,False)
+			F.Intrinsic.String.Build("delete from gab_5942_cash_acct where gl_number = '{0}'",V.Local.sRet(0).Trim,V.Local.sSQL)
+			F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		F.Intrinsic.Control.EndIf
+		F.ODBC.conx!rst.Close
+		
+		F.Intrinsic.String.Build("insert into gab_5942_cash_acct(gl_number,currency) values('{0}','{1}');",V.Local.sRet(0).Trim,V.Local.sRet(2).Trim,V.Local.sSQL)
+		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		F.Data.DataTable.SetValue("dtAcct",V.Args.RowIndex,"GLAccount",V.Local.sRet(0).Trim,"GLDescription",V.Local.sRet(1).Trim,"Currency",V.Local.sRet(2).Trim)
+		
+'		F.Intrinsic.String.Build("GLAccount = '{0}'",V.Local.sRet(0).Trim,V.Local.sFilter)
+'		F.Data.DataTable.Select("dtGL",V.Local.sFilter,V.Local.sRet)
+'		F.Intrinsic.Control.If(V.Local.sRet,<>,"***NORETURN***")
+'			F.Data.DataTable.DeleteRow("dtGL",V.Local.sRet)
+'			F.Data.DataTable.AcceptChanges("dtGL")
+'		F.Intrinsic.Control.EndIf
+		
+		F.Intrinsic.Control.If(V.DataTable.dtAcct.RowCount,<,5)
+			F.Data.DataTable.AddRow("dtAcct","GLAccount","","GLDescription","")
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+Program.Sub.GsGCAcct_RowCellClick.End
+
+Program.Sub.GsGCIn_CellValueChanged.Start
+V.Local.iWidths.Declare
+V.Local.sRet.Declare
+V.Local.sSQL.Declare
+V.Local.sTitles.Declare
+
+F.Intrinsic.Control.If(V.Args.Column,=,"Description")
+	F.Intrinsic.String.Build("update gab_5942_rpt_row set description = '{0}' where id = {1};",V.Args.Value,V.DataTable.dtIn(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Control.EndIf
+Program.Sub.GsGCIn_CellValueChanged.End
+
+Program.Sub.GsGCOut_CellValueChanged.Start
+V.Local.iWidths.Declare
+V.Local.sRet.Declare
+V.Local.sSQL.Declare
+V.Local.sTitles.Declare
+
+F.Intrinsic.Control.If(V.DataTable.dtOut(V.Args.RowIndex).ID!FieldVal,=,9)
+	F.Intrinsic.String.Build("update gab_5942_rpt_row set description = '{0}' where id = {1};",V.Args.Value,V.DataTable.dtOut(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Control.EndIf
+Program.Sub.GsGCOut_CellValueChanged.End
+
+Program.Sub.cmdNewIn_Click.Start
+V.Global.iID.Set(1)
+
+Gui.F_Text.txt1.Text("")
+Gui.F_Text..Show
+Program.Sub.cmdNewIn_Click.End
+
+Program.Sub.F_Text_Unload.Start
+Gui.F_Text..Visible(False)
+Gui.F_Setup..Show
+Program.Sub.F_Text_Unload.End
+
+Program.Sub.cmdNewOut_Click.Start
+V.Global.iID.Set(0)
+
+Gui.F_Text.txt1.Text("")
+Gui.F_Text..Show
+Program.Sub.cmdNewOut_Click.End
+
+Program.Sub.cmdSave_Click.Start
+V.Local.iID.Declare
+V.Local.sSQL.Declare
+
+'Get the latest ID
+F.ODBC.Connection!conx.ExecuteAndReturn("select max(id) from gab_5942_rpt_row",V.Local.iID)
+F.Intrinsic.Math.Add(V.Local.iID,1,V.Local.iID)
+
+F.Intrinsic.String.Build("insert into gab_5942_rpt_row(id,description,flag_in_out) values({0},'{1}',{2});",V.Local.iID,V.Screen.F_Text!txt1.Text,V.Global.iID,V.Local.sSQL)
+F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+
+F.Intrinsic.Control.If(V.Global.iID,=,1)
+	F.Data.DataTable.AddRow("dtIn","ID",V.Local.iID,"Description",V.Screen.F_Text!txt1.Text)
+F.Intrinsic.Control.Else
+	F.Data.DataTable.AddRow("dtOut","ID",V.Local.iID,"Description",V.Screen.F_Text!txt1.Text)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.CallSProgram.Sub.cmdSave_Click.End
+Program.Sub.GsGCIn_RowCellClick.Start
+V.Local.iRet.Declare
+V.Local.iWidths.Declare
+V.Local.sRet.Declare
+V.Local.sSQL.Declare
+V.Local.sTitles.Declare
+
+F.Intrinsic.Control.If(V.Args.Column,=,"Delete")
+	'Check if there is record in GAB_5942_RPT_DETAIL
+	F.Intrinsic.String.Build("select * from GAB_5942_RPT_DETAIL where id = {0}",V.DataTable.dtIn(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+	F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+	F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF)
+		F.Intrinsic.String.Build("delete from gab_5942_rpt_row where id = {0}",V.DataTable.dtIn(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		F.Data.DataTable.DeleteRow("dtIn",V.Args.RowIndex)
+		F.Data.DataTable.AcceptChanges("dtIn")
+	F.Intrinsic.Control.Else
+		F.Intrinsic.UI.Msgbox("There are transaction records for this category. Are you sure to delete this category?","",4,V.Local.iRet)
+		F.Intrinsic.Control.If(V.Local.iRet,=,6)
+			'Ask user to select another ID to update existing records
+			F.Intrinsic.String.Split("ID*!*Category","*!*",V.Local.sTitles)
+			F.Intrinsic.String.Split("300*!*1200","*!*",V.Local.iWidths)
+			F.Intrinsic.String.Build("select id as ID, description as Description from gab_5942_rpt_row where flag_in_out = 1 and id <> {0} order by id",V.DataTable.dtIn(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+			F.Intrinsic.UI.Browser("Select a Category to update records","conx",V.Local.sSQL,V.Local.sTitles,V.Local.iWidths,V.Local.sRet)
+			F.Intrinsic.Control.If(V.Local.sRet,<>,"***CANCEL***")
+				F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+				F.Intrinsic.String.Build("update GAB_5942_RPT_DETAIL set id = {0} where id = {1}",V.Local.sRet(0),V.DataTable.dtIn(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+				F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+				
+				F.Intrinsic.String.Build("delete from gab_5942_rpt_row where id = {0}",V.DataTable.dtIn(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+				F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+				F.Data.DataTable.DeleteRow("dtIn",V.Args.RowIndex)
+				F.Data.DataTable.AcceptChanges("dtIn")
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+	F.ODBC.conx!rst.Close
+F.Intrinsic.Control.EndIf
+Program.Sub.GsGCIn_RowCellClick.End
+
+Program.Sub.GsGCOut_RowCellClick.Start
+V.Local.iRet.Declare
+V.Local.iWidths.Declare
+V.Local.sRet.Declare
+V.Local.sSQL.Declare
+V.Local.sTitles.Declare
+
+F.Intrinsic.Control.If(V.Args.Column,=,"Delete")
+	'Check if there is record in GAB_5942_RPT_DETAIL
+	F.Intrinsic.String.Build("select * from GAB_5942_RPT_DETAIL where id = {0}",V.DataTable.dtOut(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+	F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+	F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF)
+		F.Intrinsic.String.Build("delete from gab_5942_rpt_row where id = {0}",V.DataTable.dtOut(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+		F.Data.DataTable.DeleteRow("dtOut",V.Args.RowIndex)
+		F.Data.DataTable.AcceptChanges("dtOUt")
+	F.Intrinsic.Control.Else
+		F.Intrinsic.UI.Msgbox("There are transaction records for this category. Are you sure to delete this category?","",4,V.Local.iRet)
+		F.Intrinsic.Control.If(V.Local.iRet,=,6)
+			'Ask user to select another ID to update existing records
+			F.Intrinsic.String.Split("ID*!*Category","*!*",V.Local.sTitles)
+			F.Intrinsic.String.Split("300*!*1200","*!*",V.Local.iWidths)
+			F.Intrinsic.String.Build("select id as ID, description as Description from gab_5942_rpt_row where flag_in_out = 0 and id <> {0} order by id",V.DataTable.dtOut(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+			F.Intrinsic.UI.Browser("Select a Category to update records","conx",V.Local.sSQL,V.Local.sTitles,V.Local.iWidths,V.Local.sRet)
+			F.Intrinsic.Control.If(V.Local.sRet,<>,"***CANCEL***")
+				F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+				F.Intrinsic.String.Build("update GAB_5942_RPT_DETAIL set id = {0} where id = {1}",V.Local.sRet(0),V.DataTable.dtOut(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+				F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+				
+				F.Intrinsic.String.Build("delete from gab_5942_rpt_row where id = {0}",V.DataTable.dtOut(V.Args.RowIndex).ID!FieldVal,V.Local.sSQL)
+				F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+				F.Data.DataTable.DeleteRow("dtOut",V.Args.RowIndex)
+				F.Data.DataTable.AcceptChanges("dtOut")
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+	F.ODBC.conx!rst.Close
+F.Intrinsic.Control.EndIf
+Program.Sub.GsGCOut_RowCellClick.End
+
+Program.Sub.Comments.Start
+${$5$}$2.0.0.0$}$2
+${$6$}$dyunus$}$20221122143227051$}$xZ6SHi8g7O0Qsxe6AiO2NH3PnOKQRy0TmtC2vZPxBkba5uR9rbIqhbTez/8+Zs72m+hHo0hbWSo=
+Program.Sub.Comments.End
