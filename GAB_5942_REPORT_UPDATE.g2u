@@ -1,0 +1,161 @@
+Program.Sub.ScreenSU.Start
+Gui.F_Cash..Create
+Gui.F_Cash..Caption("Select a Category for Cash Flow Statement")
+Gui.F_Cash..Size(15555,4590)
+Gui.F_Cash..MinX(0)
+Gui.F_Cash..MinY(0)
+Gui.F_Cash..Position(0,0)
+Gui.F_Cash..BackColor(-2147483633)
+Gui.F_Cash..MousePointer(0)
+Gui.F_Cash..Event(UnLoad,cmdSave_Click)
+Gui.F_Cash.GsGCBatch.Create(GsGridControl)
+Gui.F_Cash.GsGCBatch.Size(15150,3285)
+Gui.F_Cash.GsGCBatch.Position(75,90)
+Gui.F_Cash.cmdSave.Create(Button)
+Gui.F_Cash.cmdSave.Size(1935,495)
+Gui.F_Cash.cmdSave.Position(60,3450)
+Gui.F_Cash.cmdSave.Caption("Save")
+Gui.F_Cash.cmdSave.FontSize(9)
+Gui.F_Cash.cmdSave.Event(Click,cmdSave_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Hook 42400
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass,600)
+
+Gui.F_Cash..Sizeable(False)
+Gui.F_Cash..MaxButton(False)
+
+F.Intrinsic.Control.CallSub(LoadDatatables)
+F.Intrinsic.Control.CallSub(CashUpdate)
+'F.Intrinsic.Control.CallSub(CloseDatatables)
+Program.Sub.Main.End
+
+Program.Sub.LoadDatatables.Start
+V.Local.dateLoBound.Declare
+V.Local.i1.Declare
+V.Local.sAP.Declare
+V.Local.sLoBound.Declare
+v.Local.sSQL.Declare
+
+F.Data.DataTable.CreateFromSQL("dtAcct","conx","select gl_number as GLAccount, currency as Currency from gab_5942_cash_acct order by gl_number",True)
+
+F.Data.DataTable.CreateFromSQL("dtCat","conx","select id as ID, description as Description from GAB_5942_RPT_ROW order by description",True)
+
+'F.Data.DataTable.CreateFromSQL("dtOut","conx","select id as ID, description as Description from GAB_5942_RPT_ROW where flag_in_out = 0 order by id",True)
+Program.Sub.LoadDatatables.End
+
+Program.Sub.CashUpdate.Start
+V.Local.fAmount.Declare
+V.Local.i1.Declare
+V.Local.i2.Declare
+V.Local.iID.Declare
+V.Local.sCategory.Declare
+V.Local.sFilter.Declare
+V.Local.sPostDate.Declare
+V.Local.sRet.Declare
+V.Local.sSQL.Declare
+
+'Datatable for BI_COMB_JE_AUDIT
+F.Intrinsic.String.Build("select account as Account, batch_num as Batch, post_date as PostDate, batch_line as Line, (debit_amt-credit_amt) as Amount from V_BI_COMB_JE_AUDIT where trmnl = '{0}' and (",V.Caller.Terminal,V.Local.sSQL)
+'F.Intrinsic.String.Build("select batch_num as Batch, post_date as PostDate, batch_line as Line, account as Account from V_BI_COMB_JE_AUDIT where trmnl = '{0}' and account <> '' order by batch_num, batch_line",V.Caller.Terminal,V.Local.sSQL)
+F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtAcct.RowCount--,1)
+	F.Intrinsic.Control.If(V.Local.i1,=,0)
+		F.Intrinsic.String.Build("{0}account = '{1}'",V.Local.sSQL,V.DataTable.dtAcct(V.Local.i1).GLAccount!FieldValTrim,V.Local.sSQL)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("{0} or account = '{1}'",V.Local.sSQL,V.DataTable.dtAcct(V.Local.i1).GLAccount!FieldValTrim,V.Local.sSQL)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i1)
+F.Intrinsic.String.Concat(V.Local.sSQL,") order by batch_num, batch_line",V.Local.sSQL)
+
+F.Data.DataTable.CreateFromSQL("dtAudit","conx",V.Local.sSQL,True)
+F.Data.DataTable.AddColumn("dtAudit","Category","String","")
+F.Intrinsic.Control.If(V.DataTable.dtAudit.RowCount,>,0)
+	Gui.F_Cash.GsGCBatch.AddGridviewFromDatatable("gvCash","dtAudit")
+	Gui.F_Cash.GsGCBatch.MainView("gvCash")
+	
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Account","HeaderHAlignment","Center")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Batch","HeaderHAlignment","Center")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","PostDate","HeaderHAlignment","Center")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Line","HeaderHAlignment","Center")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Amount","HeaderHAlignment","Center")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Category","HeaderHAlignment","Center")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Batch","CellHAlignment","Center")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","PostDate","CellHAlignment","Center")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Line","CellHAlignment","Center")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Account","Caption","GL Account")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","PostDate","Caption","Post Date")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Amount","DisplayCustomNumeric","##,###,##0.00")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","PostDate","DisplayCustomDatetime","d")
+	
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Account","MinWidth","110")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Batch","MinWidth","80")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","PostDate","MinWidth","110")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Line","MinWidth","60")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Amount","MinWidth","120")
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Category","MinWidth","180")
+	
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Account","HeaderFontBold",True)
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Batch","HeaderFontBold",True)
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","PostDate","HeaderFontBold",True)
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Line","HeaderFontBold",True)
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Amount","HeaderFontBold",True)
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Category","HeaderFontBold",True)
+	
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Category","AllowEdit",True)
+	Gui.F_Cash.GsGCBatch.SetColumnProperty("gvCash","Category","ReadOnly",False)
+	
+	F.Intrinsic.Control.For(V.Local.i2,0,V.DataTable.dtCat.RowCount--,1)
+		F.Intrinsic.Control.If(V.Local.i2,=,0)
+			V.Local.sCategory.Set(V.DataTable.dtCat(V.Local.i2).Description!FieldValTrim)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Build("{0}*!*{1}",V.Local.sCategory,V.DataTable.dtCat(V.Local.i2).Description!FieldValTrim,V.Local.sCategory)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.i2)
+	Gui.F_Cash.GsGCBatch.ColumnEdit("gvCash","Category","Dropdownlist",V.Local.sCategory)
+	
+	Gui.F_Cash..Show
+F.Intrinsic.Control.Else
+	F.Intrinsic.Control.CallSub(Unload)
+F.Intrinsic.Control.EndIf
+Program.Sub.CashUpdate.End
+
+Program.Sub.CloseDatatables.Start
+F.Data.DataTable.Close("dtAcct")
+F.Data.DataTable.Close("dtCat")
+F.Intrinsic.Control.If(V.DataTable.dtAudit.Exists)
+	F.Data.DataTable.Close("dtAudit")
+F.Intrinsic.Control.EndIf
+Program.Sub.CloseDatatables.End
+
+Program.Sub.Unload.Start
+F.Intrinsic.Control.CallSub(CloseDatatables)
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+Program.Sub.Unload.End
+
+Program.Sub.cmdSave_Click.Start
+V.Local.i1.Declare
+V.Local.sFilter.Declare
+V.Local.sFRet.Declare
+V.Local.sRet.Declare
+V.Local.sSQL.Declare
+
+F.Data.DataTable.Select("dtAudit","Category = ''",V.Local.sRet)
+F.Intrinsic.Control.If(V.Local.sRet,=,"***NORETURN***")
+	F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtAudit.RowCount--,1)
+		F.Intrinsic.String.Build("Description = '{0}'",V.DataTable.dtAudit(V.Local.i1).Category!FieldValTrim,V.Local.sFilter)
+		F.Data.DataTable.Select("dtCat",V.Local.sFilter,V.Local.sFRet)
+		F.Intrinsic.String.Split(V.Local.sFRet,"*!*",V.Local.sFRet)
+		F.Intrinsic.String.Build("insert into GAB_5942_RPT_DETAIL(BATCH, LINE, POST_DATE_SQL, AMOUNT, ID, CASH_ACCOUNT) values('{0}',{1},'{2}',{3},{4},'{5}')",V.DataTable.dtAudit(V.Local.i1).Batch!FieldValTrim,V.DataTable.dtAudit(V.Local.i1).Line!FieldVal,V.DataTable.dtAudit(V.Local.i1).PostDate!FieldValPervasiveDate,V.DataTable.dtAudit(V.Local.i1).Amount!FieldVal,V.DataTable.dtCat(V.Local.sFRet(0)).ID!FieldVal,V.DataTable.dtAudit(V.Local.i1).Account!FieldValTrim,V.Local.sSQL)
+		F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.Control.Next(V.Local.i1)
+	
+	F.Intrinsic.Control.CallSub(Unload)
+F.Intrinsic.Control.Else
+	F.Intrinsic.UI.Msgbox("Please select a category for all cash accounts")
+F.Intrinsic.Control.EndIf
+Program.Sub.cmdSave_Click.End
